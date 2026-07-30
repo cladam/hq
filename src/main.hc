@@ -2,7 +2,25 @@ import "std/cli"
 import "std/term"
 import "std/io"
 import "std/list"
+import "hml"
 import "cli_spec"
+
+fun process_file(f: string) {
+  println("File: {f}")
+  match read_file(f) {
+    Ok(content) => {
+      println("Read {show(length(content))} bytes from {f}")
+      match hml_parse_file_content(content, f) {
+        Ok(nodes) => {
+          println("Parsed successfully. Formatted AST:")
+          println(hml_pretty(nodes, 0))
+        },
+        Err(e) => eprintln("Parse error in {f}: {e}")
+      }
+    },
+    Err(e) => eprintln("Failed to read {f}: {e}")
+  }
+}
 
 fun main() {
   let spec = make_spec()
@@ -25,13 +43,7 @@ fun main() {
         if is_empty(files) {
           println("No files provided, would read STDIN")
         } else {
-          foreach(files, (f) => {
-            println("File: {f}")
-            match read_file(f) {
-              Ok(content) => println("Read {show(length(content))} bytes from {f}"),
-              Err(e)      => eprintln("Failed to read {f}: {e}")
-            }
-          })
+          foreach(files, process_file)
         }
       }
     }
