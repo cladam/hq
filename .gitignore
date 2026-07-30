@@ -1,0 +1,19 @@
+.build/
+.koka/
+lib/
+vendor/
+.clinerules
+
+src/*
+!src/*.hc
+
+tests/*
+!tests/*.hc
+!tests/*.hml
+
+examples/*
+!examples/*.hc
+!examples/*.sh
+
+# tbdflow intent log (local-only, never committed)
+.tbdflow-intent.json
