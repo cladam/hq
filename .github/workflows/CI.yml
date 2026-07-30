@@ -19,13 +19,13 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact: hicurl-linux-x86_64
+            artifact: hq-linux-x86_64
           - os: ubuntu-24.04-arm
-            artifact: hicurl-linux-arm64
+            artifact: hq-linux-arm64
           - os: macos-latest
-            artifact: hicurl-macos-arm64
+            artifact: hq-macos-arm64
           - os: windows-latest
-            artifact: hicurl-windows-x86_64
+            artifact: hq-windows-x86_64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -64,47 +64,13 @@ jobs:
           hica --version
         shell: bash
 
-      - name: Install libcurl (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
-
-      - name: Install libcurl (macOS)
-        if: runner.os == 'macOS'
-        run: brew install curl
-
-      - name: Install libcurl (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          vcpkg install curl:x64-windows
-          vcpkg integrate install
-          Copy-Item C:\vcpkg\installed\x64-windows\lib\libcurl.lib C:\v2-curl.lib -ErrorAction SilentlyContinue
-          Copy-Item C:\vcpkg\installed\x64-windows\lib\libcurl.lib C:\vcpkg\installed\x64-windows\lib\curl.lib -Force
-          Copy-Item C:\vcpkg\installed\x64-windows\bin\*.dll . -Force -ErrorAction SilentlyContinue
-          Copy-Item C:\vcpkg\installed\x64-windows\bin\*.dll $env:LOCALAPPDATA\hica\ -Force -ErrorAction SilentlyContinue
-          "C:\vcpkg\installed\x64-windows\bin" | Out-File -Append -FilePath $env:GITHUB_PATH
-
-      - name: Adjust hica.hml for Linux
-        if: runner.os == 'Linux'
-        run: |
-          sed -i \
-            -e 's| --ccincdir=/opt/homebrew/include||g' \
-            -e 's| --cclinkopts=-L/opt/homebrew/lib||g' \
-            hica.hml
-
-      - name: Adjust hica.hml for Windows
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          (Get-Content hica.hml) -replace '--ccincdir=/opt/homebrew/include', '--ccincdir=C:/vcpkg/installed/x64-windows/include' -replace '--cclinkopts=-L/opt/homebrew/lib', '--cclinkopts=-LIBPATH:C:/vcpkg/installed/x64-windows/lib' | Set-Content hica.hml
-
       - name: Build binary (Linux/MacOS)
         if: runner.os != 'Windows'
         shell: bash
         run: |
           mkdir -p "$HOME/.hica/stdlib"
           hica fetch
-          hica build -o hicurl
+          hica build -o hq
 
       - name: Setup Windows Workarounds & Build Binary
         if: runner.os == 'Windows'
@@ -113,7 +79,7 @@ jobs:
           # Create C:\bin directory for wrappers
           New-Item -ItemType Directory -Force -Path "C:\bin"
 
-          # Persist C:\bin to GITHUB_PATH and prioritize .CMD in PATHEXT across ALL steps
+          # Persist C:\bin to GITHUB_PATH and prioritise .CMD in PATHEXT across ALL steps
           "C:\bin" | Out-File -Append -FilePath $env:GITHUB_PATH
           "PATHEXT=.CMD;.BAT;.EXE;.COM" | Out-File -Append -FilePath $env:GITHUB_ENV
 
@@ -151,13 +117,10 @@ jobs:
 
           # Pre-download dependencies with --strip-components=1
           $hicaPkg = "$env:USERPROFILE\.hica\pkg"
-          New-Item -ItemType Directory -Force -Path "$hicaPkg\json\1.0.0", "$hicaPkg\http\1.2.0", "$env:USERPROFILE\.hica\stdlib"
+          New-Item -ItemType Directory -Force -Path "$hicaPkg\hml\1.2.2", "$env:USERPROFILE\.hica\stdlib"
 
-          curl.exe -sSL "https://pkg.hica.dev/json/json-1.0.0.tar.gz" -o "$env:TEMP\json.tar.gz"
-          tar.exe -xzf "$env:TEMP\json.tar.gz" -C "$hicaPkg\json\1.0.0" --strip-components=1
-
-          curl.exe -sSL "https://pkg.hica.dev/http/http-1.2.0.tar.gz" -o "$env:TEMP\http.tar.gz"
-          tar.exe -xzf "$env:TEMP\http.tar.gz" -C "$hicaPkg\http\1.2.0" --strip-components=1
+          curl.exe -sSL "https://pkg.hica.dev/hml/hml-1.2.2.tar.gz" -o "$env:TEMP\hml.tar.gz"
+          tar.exe -xzf "$env:TEMP\hml.tar.gz" -C "$hicaPkg\hml\1.2.2" --strip-components=1
 
           # Copy package source files to src/ and tests/ so imports resolve cleanly
           Get-ChildItem -Path "$hicaPkg" -Recurse | Where-Object { $_.Extension -in '.hc', '.kk' } | Copy-Item -Destination "src\" -Force
@@ -165,7 +128,7 @@ jobs:
 
           # Build project binary
           hica fetch
-          hica build -o hicurl
+          hica build -o hq
 
       - name: Run unit tests (Unix)
         if: runner.os != 'Windows'
@@ -232,20 +195,20 @@ jobs:
 
       - name: Strip binary (Linux)
         if: runner.os == 'Linux'
-        run: strip hicurl
+        run: strip hq
 
       - name: Ad-hoc codesign (macOS)
         if: runner.os == 'macOS'
-        run: codesign --sign - --force hicurl
+        run: codesign --sign - --force hq
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
-        run: tar czf ${{ matrix.artifact }}.tar.gz hicurl
+        run: tar czf ${{ matrix.artifact }}.tar.gz hq
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path hicurl.exe -DestinationPath ${{ matrix.artifact }}.zip
+        run: Compress-Archive -Path hq.exe -DestinationPath ${{ matrix.artifact }}.zip
 
       - name: Upload artifact (Unix)
         if: runner.os != 'Windows'
