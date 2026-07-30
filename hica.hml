@@ -1,0 +1,16 @@
+@project {
+    name: "hq"
+    version: "0.1.0"
+    license: "MIT"
+    entry: "src/main.hc"
+}
+
+@dependencies {
+}
+
+@description {
+    summary: "hq - the HML Query tool"
+    author: "cladam"
+    homepage: "https://www.hica.dev"
+    repository: "https://github.com/cladam/hq"
+}
