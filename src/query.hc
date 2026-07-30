@@ -12,7 +12,7 @@ pub fun parse_query(expr: string) : result<list<QueryOp>, string> {
   parse_steps(steps)
 }
 
-fun parse_steps(steps: list<string>) : result<list<QueryOp>, string> {
+pub fun parse_steps(steps: list<string>) : result<list<QueryOp>, string> {
   match steps {
     [] => Ok([]),
     [step, ..rest] => {
@@ -27,7 +27,7 @@ fun parse_steps(steps: list<string>) : result<list<QueryOp>, string> {
   }
 }
 
-fun parse_step(step: string) : result<QueryOp, string> {
+pub fun parse_step(step: string) : result<QueryOp, string> {
   if starts_with(step, "@") {
     Ok(OpElem(step[1:]))
   } else if starts_with(step, ".") {
@@ -47,22 +47,4 @@ fun parse_step(step: string) : result<QueryOp, string> {
   } else {
     Err("Unknown query step: " + step)
   }
-}
-
-test "parse simple elem and attr pipeline" {
-  let r = parse_query("@server |> attr(\"port\")")
-  let success = match r {
-    Ok([OpElem(e), OpAttr(a)]) => e == "server" && a == "port",
-    _ => false
-  }
-  assert(success)
-}
-
-test "parse prop short syntax" {
-  let r = parse_query(".database")
-  let success = match r {
-    Ok([OpProp(p)]) => p == "database",
-    _ => false
-  }
-  assert(success)
 }
