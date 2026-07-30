@@ -4,6 +4,8 @@ lib/
 vendor/
 .clinerules
 
+docs/the-plan.md
+
 src/*
 !src/*.hc
 
