@@ -1,19 +1,16 @@
 import "std/cli"
-import "std/term"
-import "std/io"
 import "std/list"
-import "hml"
-import "cli_spec"
+import "std/io"
+import "./cli_spec"
+import "./query"
 
-fun process_file(f: string) {
-  println("File: {f}")
+fun process_file(f: string, ops: list<QueryOp>, raw_output: bool) {
   match read_file(f) {
     Ok(content) => {
-      println("Read {show(length(content))} bytes from {f}")
-      match hml_parse_file_content(content, f) {
+      match parse_hml_content(content, f) {
         Ok(nodes) => {
-          println("Parsed successfully. Formatted AST:")
-          println(hml_pretty(nodes, 0))
+          let filtered = eval_pipeline(nodes, ops)
+          println(pretty_print_nodes(filtered))
         },
         Err(e) => eprintln("Parse error in {f}: {e}")
       }
@@ -25,25 +22,25 @@ fun process_file(f: string) {
 fun main() {
   let spec = make_spec()
   match cli_parse(spec) {
-    Help          => println(cli_help_extended(spec)),
+    Help          => println(cli_help(spec)),
     Version       => println(cli_version_str(spec)),
-    CliError(msg) => eprintln("error: {msg}"),
+    CliError(msg) => eprintln("error: " + msg),
     Parsed(r)     => {
       let raw_output = has_flag(r, "raw-output")
-      let in_place = has_flag(r, "in-place")
-      
       let pos = get_positionals(r)
-      if is_empty(pos) {
-        eprintln("error: Missing expression argument")
-      } else {
-        let expr = head_or(pos, "")
-        let files = tail(pos)
-        
-        println("Expression: {expr}")
-        if is_empty(files) {
-          println("No files provided, would read STDIN")
-        } else {
-          foreach(files, process_file)
+
+      match pos {
+        [] => eprintln("error: Missing expression argument"),
+        [expr, ..files] => {
+          match parse_query(expr) {
+            Ok(ops) => {
+              match files {
+                [] => eprintln("No files provided, STDIN reading coming next"),
+                _ => foreach(files, (f) => process_file(f, ops, raw_output))
+              }
+            },
+            Err(err) => eprintln("Query error: " + err)
+          }
         }
       }
     }
