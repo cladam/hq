@@ -12,7 +12,7 @@ pub fun make_spec() {
     |> arg("files...", "Input files (or STDIN if missing)", false)
 }
 
-pub fun cli_help_extended(spec) {
+pub fun cli_help_extended(spec){
   let base_help = cli_help(spec)
   let extra_help = "EXTENDED HELP:\n" +
 "  - Expression syntax: `@server |> attr(\"port\")`\n" +

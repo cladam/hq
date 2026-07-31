@@ -1,19 +1,25 @@
 import "std/cli"
 import "std/list"
 import "std/io"
-import "./cli_spec"
-import "./query"
+import "../src/hq"
 
-fun process_file(f: string, ops: list<QueryOp>, raw_output: bool) {
+fun make_spec() {
+  cli("hq", "0.1.0", "hq - a HML Query tool")
+    |> flag("raw-output", "r", "Prints unquoted scalar strings or text content blocks directly")
+    |> flag("in-place", "i", "Rewrites the target input file(s) atomically with the evaluation result")
+    |> flag("color", "c", "Enables ANSI syntax colorization for terminal output")
+    |> flag("slurp", "s", "Reads multiple top-level elements across inputs into a single list sequence")
+    |> flag("no-include", "", "Disables recursive #include directive resolution during parsing")
+    |> option_default("indent", "", "Sets the indentation level (spaces) for HML body serialization", "4")
+    |> arg("expression", "The query expression to evaluate", true)
+    |> arg("files...", "Input files (or STDIN if missing)", false)
+}
+
+fun process_file(f: string, expr: string) {
   match read_file(f) {
-    Ok(content) => {
-      match parse_hml_content(content, f) {
-        Ok(nodes) => {
-          let filtered = eval_pipeline(nodes, ops)
-          println(pretty_print_nodes(filtered))
-        },
-        Err(e) => eprintln("Parse error in {f}: {e}")
-      }
+    Ok(content) => match run_query(expr, content) {
+      Ok(result) => println(result),
+      Err(e) => eprintln("error: {e}")
     },
     Err(e) => eprintln("Failed to read {f}: {e}")
   }
@@ -24,24 +30,12 @@ fun main() {
   match cli_parse(spec) {
     Help          => println(cli_help(spec)),
     Version       => println(cli_version_str(spec)),
-    CliError(msg) => eprintln("error: " + msg),
+    CliError(msg) => eprintln("error: {msg}"),
     Parsed(r)     => {
-      let raw_output = has_flag(r, "raw-output")
       let pos = get_positionals(r)
-
       match pos {
         [] => eprintln("error: Missing expression argument"),
-        [expr, ..files] => {
-          match parse_query(expr) {
-            Ok(ops) => {
-              match files {
-                [] => eprintln("No files provided, STDIN reading coming next"),
-                _ => foreach(files, (f) => process_file(f, ops, raw_output))
-              }
-            },
-            Err(err) => eprintln("Query error: " + err)
-          }
-        }
+        [expr, ..files] => foreach(files, (f) => process_file(f, expr))
       }
     }
   }
