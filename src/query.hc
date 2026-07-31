@@ -8,30 +8,87 @@ pub type QueryOp {
   OpAttr(name: string)
 }
 
+// -------------------------------------------------------------------
+// Direct single-pattern helpers
+// -------------------------------------------------------------------
+
+pub fun hq_is_elem_named(node: HmlNode, target: string) : bool =>
+  match node {
+    NElem(HElement(name, _, _)) => name == target,
+    _ => false
+  }
+
+pub fun hq_get_elem_attrs(node: HmlNode) : list<(string, Hml)> =>
+  match node {
+    NElem(HElement(_, attrs, _)) => attrs,
+    _ => []
+  }
+
+pub fun hq_get_elem_body(node: HmlNode) : list<HmlNode> =>
+  match node {
+    NElem(HElement(_, _, body)) => body,
+    _ => []
+  }
+
+pub fun find_attr_val(attrs: list<(string, Hml)>, target: string) : maybe<Hml> {
+  match filter(attrs, (attr) => attr.0 == target) {
+    [attr, ..] => Some(attr.1),
+    [] => None
+  }
+}
+
+// -------------------------------------------------------------------
+// Query Evaluation Engine
+// -------------------------------------------------------------------
+
+pub fun eval_elem(node: HmlNode, target: string) : list<HmlNode> =>
+  if hq_is_elem_named(node, target) { [node] } else { [] }
+
+pub fun eval_attr(node: HmlNode, target: string) : list<HmlNode> =>
+  match find_attr_val(hq_get_elem_attrs(node), target) {
+    Some(val) => [NProp(target, val)],
+    None => []
+  }
+
+pub fun eval_prop(node: HmlNode, target: string) : list<HmlNode> =>
+  filter(hq_get_elem_body(node), (child) => match child {
+    NProp(k, _) => k == target,
+    _ => false
+  })
+
+pub fun eval_apply_op(node: HmlNode, op: QueryOp) : list<HmlNode> =>
+  match op {
+    OpElem(target) => eval_elem(node, target),
+    OpAttr(target) => eval_attr(node, target),
+    OpProp(target) => eval_prop(node, target)
+  }
+
+pub fun eval_op(nodes: list<HmlNode>, op: QueryOp) : list<HmlNode> =>
+  flat_map(nodes, (node) => eval_apply_op(node, op))
+
+pub fun eval_pipeline(doc_nodes: list<HmlNode>, ops: list<QueryOp>) : list<HmlNode> =>
+  fold(ops, doc_nodes, (acc, op) => eval_op(acc, op))
+
+// -------------------------------------------------------------------
+// Expression Parsing
+// -------------------------------------------------------------------
+
 pub fun parse_query(expr: string) : result<list<QueryOp>, string> {
   let steps = split(expr, "|>") |> map(trim)
   parse_steps(steps)
 }
 
-pub fun parse_steps(steps: list<string>) : result<list<QueryOp>, string> {
-  var err: maybe<string> = None
-  var ops: list<QueryOp> = []
-  foreach(steps, (step) => {
-    match parse_step(step) {
-      Ok(op) => { ops = ops + [op] },
-      Err(e) => {
-        match err {
-          None => { err = Some(e) },
-          Some(_) => {}
-        }
-      }
+pub fun parse_steps(steps: list<string>) : result<list<QueryOp>, string> =>
+  match steps {
+    [] => Ok([]),
+    [step, ..rest] => match parse_step(step) {
+      Ok(op) => match parse_steps(rest) {
+        Ok(ops) => Ok([op] + ops),
+        Err(e)  => Err(e)
+      },
+      Err(e) => Err(e)
     }
-  })
-  match err {
-    Some(e) => Err(e),
-    None => Ok(ops)
   }
-}
 
 pub fun parse_step(step: string) : result<QueryOp, string> {
   if starts_with(step, "@") {
@@ -54,53 +111,6 @@ pub fun parse_step(step: string) : result<QueryOp, string> {
     Err("Unknown query step: " + step)
   }
 }
-
-pub fun find_attr_val(attrs: list<(string, Hml)>, target: string) : maybe<Hml> {
-  var res: maybe<Hml> = None
-  foreach(attrs, (attr) => {
-    if attr.0 == target && is_none(res) {
-      res = Some(attr.1)
-    }
-  })
-  res
-}
-
-pub fun eval_apply_op(node: HmlNode, op: QueryOp) : list<HmlNode> =>
-  match op {
-    OpElem(target) => match node {
-      NElem(el) => match el {
-        HElement(ename, _, _) => if ename == target { [node] } else { [] },
-        _ => []
-      },
-      _ => []
-    },
-    OpAttr(target) => match node {
-      NElem(el) => match el {
-        HElement(_, attrs, _) => match find_attr_val(attrs, target) {
-          Some(val) => [NProp(target, val)],
-          None => []
-        },
-        _ => []
-      },
-      _ => []
-    },
-    OpProp(target) => match node {
-      NElem(el) => match el {
-        HElement(_, _, body) => filter(body, (child) => match child {
-          NProp(k, _) => k == target,
-          _ => false
-        }),
-        _ => []
-      },
-      _ => []
-    }
-  }
-
-pub fun eval_op(nodes: list<HmlNode>, op: QueryOp) : list<HmlNode> =>
-  flat_map(nodes, (node) => eval_apply_op(node, op))
-
-pub fun eval_pipeline(doc_nodes: list<HmlNode>, ops: list<QueryOp>) : list<HmlNode> =>
-  fold(ops, doc_nodes, (acc, op) => eval_op(acc, op))
 
 pub fun pretty_print_nodes(nodes: list<HmlNode>) : string =>
   hml_pretty(nodes, 0)
