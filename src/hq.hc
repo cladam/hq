@@ -30,15 +30,14 @@ pub fun get_elem_body(node: HmlNode) : list<HmlNode> =>
     _ => []
   }
 
-pub fun find_attr_val(attrs: list<(string, Hml)>, target: string) : maybe<Hml> {
-  match filter(attrs, (attr) => attr.0 == target) {
-    [attr, ..] => Some(attr.1),
-    [] => None
+pub fun find_attr_val(attrs: list<(string, Hml)>, target: string) : maybe<Hml> =>
+  match attrs {
+    [] => None,
+    [attr, ..rest] => if attr.0 == target { Some(attr.1) } else { find_attr_val(rest, target) }
   }
-}
 
 // -------------------------------------------------------------------
-// Query Evaluation Engine
+// Query Evaluation Engine (Direct Recursion - Zero Closures)
 // -------------------------------------------------------------------
 
 pub fun eval_elem(node: HmlNode, target: string) : list<HmlNode> =>
@@ -50,11 +49,17 @@ pub fun eval_attr(node: HmlNode, target: string) : list<HmlNode> =>
     None => []
   }
 
+pub fun filter_props_by_key(nodes: list<HmlNode>, target: string) : list<HmlNode> =>
+  match nodes {
+    [] => [],
+    [node, ..rest] => match node {
+      NProp(k, _) => if k == target { [node] + filter_props_by_key(rest, target) } else { filter_props_by_key(rest, target) },
+      _ => filter_props_by_key(rest, target)
+    }
+  }
+
 pub fun eval_prop(node: HmlNode, target: string) : list<HmlNode> =>
-  filter(get_elem_body(node), (child) => match child {
-    NProp(k, _) => k == target,
-    _ => false
-  })
+  filter_props_by_key(get_elem_body(node), target)
 
 pub fun eval_apply_op(node: HmlNode, op: QueryOp) : list<HmlNode> =>
   match op {
@@ -64,10 +69,16 @@ pub fun eval_apply_op(node: HmlNode, op: QueryOp) : list<HmlNode> =>
   }
 
 pub fun eval_op(nodes: list<HmlNode>, op: QueryOp) : list<HmlNode> =>
-  flat_map(nodes, (node) => eval_apply_op(node, op))
+  match nodes {
+    [] => [],
+    [node, ..rest] => eval_apply_op(node, op) + eval_op(rest, op)
+  }
 
 pub fun eval_pipeline(doc_nodes: list<HmlNode>, ops: list<QueryOp>) : list<HmlNode> =>
-  fold(ops, doc_nodes, (acc, op) => eval_op(acc, op))
+  match ops {
+    [] => doc_nodes,
+    [op, ..rest] => eval_pipeline(eval_op(doc_nodes, op), rest)
+  }
 
 // -------------------------------------------------------------------
 // Query Expression Parsing
@@ -104,14 +115,27 @@ pub fun parse_steps(steps: list<string>) : result<list<QueryOp>, string> =>
     }
   }
 
+pub fun map_trim(steps: list<string>) : list<string> =>
+  match steps {
+    [] => [],
+    [s, ..rest] => [trim(s)] + map_trim(rest)
+  }
+
 pub fun parse_query(expr: string) : result<list<QueryOp>, string> {
-  let steps = split(expr, "|>") |> map(trim)
+  let steps = map_trim(split(expr, "|>"))
   parse_steps(steps)
 }
 
 // -------------------------------------------------------------------
-// Local Formatting Engine (Inlined to avoid cross-module recursive specialization)
+// Formatting Engine (Direct Recursion - Zero Closures)
 // -------------------------------------------------------------------
+
+pub fun show_hml_array(items: list<Hml>) : string =>
+  match items {
+    [] => "",
+    [x] => hq_hml_show(x),
+    [x, ..rest] => hq_hml_show(x) + ", " + show_hml_array(rest)
+  }
 
 pub fun hq_hml_show(v: Hml) : string => match v {
   HStr(s) => if contains(s, "\n") { "\"\"\"\n" + s + "\n\"\"\"" } else { "\"" + s + "\"" },
@@ -121,13 +145,20 @@ pub fun hq_hml_show(v: Hml) : string => match v {
   HDuration(amount, unit) => show(amount) + unit,
   HDatetime(s) => s,
   HNull => "null",
-  HArray(items) => "[" + join(map(items, (i) => hq_hml_show(i)), ", ") + "]",
-  HElement(name, attrs, body) => show_element(name, attrs, body)
+  HArray(items) => "[" + show_hml_array(items) + "]",
+  HElement(name, attrs, body) => hq_show_element(name, attrs, body)
 }
+
+pub fun show_attrs_list(attrs: list<(string, Hml)>) : string =>
+  match attrs {
+    [] => "",
+    [a] => hq_show_attr(a),
+    [a, ..rest] => hq_show_attr(a) + ", " + show_attrs_list(rest)
+  }
 
 pub fun hq_show_element(name: string, attrs: list<(string, Hml)>, body: list<HmlNode>) : string {
   let attr_str = if length(attrs) == 0 { "" }
-                 else { "(" + join(map(attrs, (a) => hq_show_attr(a)), ", ") + ")" }
+                 else { "(" + show_attrs_list(attrs) + ")" }
   let body_str = if length(body) == 0 { "" }
                  else { " \{ ... \}" }
   "@" + name + attr_str + body_str
@@ -142,7 +173,11 @@ pub fun make_hml_indent(n: int) : string =>
   if n <= 0 { "" } else { "    " + make_hml_indent(n - 1) }
 
 pub fun local_pretty_nodes(nodes: list<HmlNode>, indent: int) : string =>
-  join(map(nodes, (node) => hq_pretty_node(node, indent)), "\n")
+  match nodes {
+    [] => "",
+    [node] => hq_pretty_node(node, indent),
+    [node, ..rest] => hq_pretty_node(node, indent) + "\n" + local_pretty_nodes(rest, indent)
+  }
 
 pub fun hq_pretty_node(node: HmlNode, indent: int) : string {
   let pad = make_hml_indent(indent)
@@ -150,7 +185,7 @@ pub fun hq_pretty_node(node: HmlNode, indent: int) : string {
     NProp(key, val) => pad + key + ": " + hq_hml_show(val),
     NElem(HElement(name, attrs, body)) => {
       let attr_str = if length(attrs) == 0 { "" }
-                     else { "(" + join(map(attrs, (a) => hq_show_attr(a)), ", ") + ")" }
+                     else { "(" + show_attrs_list(attrs) + ")" }
       if length(body) == 0 { pad + "@" + name + attr_str }
       else {
         let header = pad + "@" + name + attr_str + " {"
