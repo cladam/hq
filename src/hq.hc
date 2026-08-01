@@ -40,8 +40,14 @@ pub fun find_attr_val(attrs: list<(string, Hml)>, target: string) : maybe<Hml> =
 // Query Evaluation Engine (Direct Recursion - Zero Closures)
 // -------------------------------------------------------------------
 
+pub fun filter_elems_by_name(nodes: list<HmlNode>, target: string) : list<HmlNode> =>
+  match nodes {
+    [] => [],
+    [node, ..rest] => if hq_is_elem_named(node, target) { [node] + filter_elems_by_name(rest, target) } else { filter_elems_by_name(rest, target) }
+  }
+
 pub fun eval_elem(node: HmlNode, target: string) : list<HmlNode> =>
-  if hq_is_elem_named(node, target) { [node] } else { [] }
+  filter_elems_by_name(get_elem_body(node), target)
 
 pub fun eval_attr(node: HmlNode, target: string) : list<HmlNode> =>
   match find_attr_val(get_elem_attrs(node), target) {
@@ -74,10 +80,15 @@ pub fun eval_op(nodes: list<HmlNode>, op: QueryOp) : list<HmlNode> =>
     [node, ..rest] => eval_apply_op(node, op) + eval_op(rest, op)
   }
 
-pub fun eval_pipeline(doc_nodes: list<HmlNode>, ops: list<QueryOp>) : list<HmlNode> =>
+pub fun eval_pipeline(doc_nodes: list<HmlNode>, ops: list<QueryOp>) : list<HmlNode> {
+  let root = NElem(HElement("", [], doc_nodes))
+  eval_pipeline_rec([root], ops, doc_nodes)
+}
+
+pub fun eval_pipeline_rec(current_nodes: list<HmlNode>, ops: list<QueryOp>, original: list<HmlNode>) : list<HmlNode> =>
   match ops {
-    [] => doc_nodes,
-    [op, ..rest] => eval_pipeline(eval_op(doc_nodes, op), rest)
+    [] => current_nodes,
+    [op, ..rest] => eval_pipeline_rec(eval_op(current_nodes, op), rest, original)
   }
 
 // -------------------------------------------------------------------

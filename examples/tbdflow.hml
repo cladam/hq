@@ -1,0 +1,71 @@
+main-branch-name: "main"
+release-url-template: "https://github.com/cladam/hq/releases/tag/{{version}}"
+stale-branch-threshold-days: 1
+log-display-count: 15
+@monorepo {
+    enabled: false
+    project-dirs: []
+}
+@issue-handling {
+    strategy: "branch-name"
+}
+@review {
+    enabled: true
+    default-reviewers: []
+    strategy: "github-issue"
+    workflow: null
+    rules: []
+    @labels {
+        pending: "review-pending"
+        concern: "review-concern"
+        accepted: "review-accepted"
+        dismissed: "review-dismissed"
+    }
+    concern-blocks-status: false
+}
+@radar {
+    enabled: true
+    level: "file"
+    on-sync: true
+    on-commit: false
+    ignore-patterns: ["*.lock", "*-lock.*", "CHANGELOG.md"]
+}
+@ci-check {
+    enabled: true
+}
+@branch-types {
+    chore: "chore/"
+    fix: "fix/"
+    feature: "feature/"
+    refactor: "refactor/"
+    release: "release/"
+    ci: "ci/"
+    feat: "feat/"
+    docs: "docs/"
+}
+@automatic-tags {
+    release-prefix: "v"
+}
+@lint {
+    @conventional-commit-type {
+        enabled: true
+        allowed-types: ["build", "chore", "ci", "docs", "feat", "fix", "perf", "refactor", "revert", "style", "test"]
+    }
+    @issue-key-missing {
+        enabled: false
+        pattern: "^[A-Z]+-\\d+$"
+    }
+    @scope {
+        enabled: true
+        enforce-lowercase: true
+    }
+    @subject-line-rules {
+        max-length: 72
+        enforce-lowercase: true
+        no-period: true
+    }
+    @body-line-rules {
+        max-line-length: 80
+        leading-blank: true
+    }
+}

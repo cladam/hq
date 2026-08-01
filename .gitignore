@@ -17,6 +17,7 @@ tests/*
 examples/*
 !examples/*.hc
 !examples/*.sh
+!examples/*.hml
 
 # tbdflow intent log (local-only, never committed)
 .tbdflow-intent.json
