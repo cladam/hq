@@ -201,13 +201,35 @@ pub fun hq_pretty_node(node: HmlNode, indent: int) : string {
   }
 }
 
+pub fun hq_hml_show_raw(v: Hml) : string => match v {
+  HStr(s) => s,
+  _ => hq_hml_show(v)
+}
+
+pub fun raw_pretty_node(node: HmlNode) : string => match node {
+  NProp(_, val) => hq_hml_show_raw(val),
+  NText(content) => content,
+  _ => hq_pretty_node(node, 0)
+}
+
+pub fun raw_pretty_nodes(nodes: list<HmlNode>) : string =>
+  match nodes {
+    [] => "",
+    [node] => raw_pretty_node(node),
+    [node, ..rest] => raw_pretty_node(node) + "\n" + raw_pretty_nodes(rest)
+  }
+
 // Top-level String -> String entrypoint
-pub fun run_query(expr: string, hml_content: string) : result<string, string> {
+pub fun run_query(expr: string, hml_content: string) : result<string, string> =>
+  run_query_ext(expr, hml_content, false)
+
+pub fun run_query_ext(expr: string, hml_content: string, raw: bool) : result<string, string> {
   match parse_query(expr) {
     Ok(ops) => match hml_parse_file_content(hml_content, "input.hml") {
       Ok(nodes) => {
         let filtered = eval_pipeline(nodes, ops)
-        Ok(local_pretty_nodes(filtered, 0))
+        let output = if raw { raw_pretty_nodes(filtered) } else { local_pretty_nodes(filtered, 0) }
+        Ok(output)
       },
       Err(e) => Err("Parse error: " + e)
     },

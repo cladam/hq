@@ -3,7 +3,7 @@ import "std/list"
 import "std/io"
 import "../src/hq"
 
-fun make_spec() {
+fun make_spec() =>
   cli("hq", "0.1.0", "hq - a HML Query tool")
     |> flag("raw-output", "r", "Prints unquoted scalar strings or text content blocks directly")
     |> flag("in-place", "i", "Rewrites the target input file(s) atomically with the evaluation result")
@@ -12,12 +12,11 @@ fun make_spec() {
     |> flag("no-include", "", "Disables recursive #include directive resolution during parsing")
     |> option_default("indent", "", "Sets the indentation level (spaces) for HML body serialization", "4")
     |> arg("expression", "The query expression to evaluate", true)
-    |> arg("files...", "Input files (or STDIN if missing)", false)
-}
+    |> arg("files", "Input files (or STDIN if missing)", false)
 
-fun process_file(f: string, expr: string) {
+fun process_file(f: string, expr: string, is_raw: bool) {
   match read_file(f) {
-    Ok(content) => match run_query(expr, content) {
+    Ok(content) => match run_query_ext(expr, content, is_raw) {
       Ok(result) => println(result),
       Err(e) => eprintln("error: {e}")
     },
@@ -32,10 +31,11 @@ fun main() {
     Version       => println(cli_version_str(spec)),
     CliError(msg) => eprintln("error: {msg}"),
     Parsed(r)     => {
+      let raw_output = has_flag(r, "raw-output")
       let pos = get_positionals(r)
       match pos {
         [] => eprintln("error: Missing expression argument"),
-        [expr, ..files] => foreach(files, (f) => process_file(f, expr))
+        [expr, ..files] => foreach(files, (f) => process_file(f, expr, raw_output))
       }
     }
   }
