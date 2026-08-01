@@ -35,3 +35,23 @@ echo "5. Query list configurations (@lint |> elem(\"conventional-commit-type\") 
 echo "Command: ./hq '@lint |> elem(\"conventional-commit-type\") |> prop(\"allowed-types\")' examples/tbdflow.hml"
 ./hq '@lint |> elem("conventional-commit-type") |> prop("allowed-types")' examples/tbdflow.hml
 echo ""
+
+echo "6. Select the 2nd (index 1) ingress rule from Terraform config:"
+echo "Command: ./hq '@ingress-rules |> [1]' examples/terraform.hml"
+./hq '@ingress-rules |> [1]' examples/terraform.hml
+echo ""
+
+echo "7. Select the first 2 ingress rules from Terraform config:"
+echo "Command: ./hq '@ingress-rules |> take(2)' examples/terraform.hml"
+./hq '@ingress-rules |> take(2)' examples/terraform.hml
+echo ""
+
+echo "8. Extract a multi-line user-data script from Terraform config (raw mode):"
+echo "Command: ./hq -r '.user-data-script' examples/terraform.hml"
+./hq -r '.user-data-script' examples/terraform.hml
+echo ""
+
+echo "9. Extract containerPort from K8s Deployment spec:"
+echo "Command: ./hq '@spec |> elem(\"template\") |> elem(\"spec\") |> elem(\"containers\") |> elem(\"ports\") |> elem(\"ports\") |> prop(\"containerPort\")' examples/k8s.hml"
+./hq '@spec |> elem("template") |> elem("spec") |> elem("containers") |> elem("ports") |> elem("ports") |> prop("containerPort")' examples/k8s.hml
+echo ""
