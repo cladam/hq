@@ -36,3 +36,45 @@ test "eval prop raw" {
   }
   assert(out == "app.log")
 }
+
+test "eval advanced list selectors" {
+  let doc = "@servers \{ @node(id: 1) @node(id: 2) @node(id: 3) \}"
+  let count_out = match run_query("@servers |> elem(\"node\") |> count()", doc) {
+    Ok(s) => s,
+    _ => ""
+  }
+  assert(count_out == "count: 3")
+
+  let index_out = match run_query_ext("@servers |> elem(\"node\") |> [1] |> attr(\"id\")", doc, true) {
+    Ok(s) => s,
+    _ => ""
+  }
+  assert(index_out == "2")
+
+  let take_out = match run_query("@servers |> elem(\"node\") |> take(2)", doc) {
+    Ok(s) => s,
+    _ => ""
+  }
+  assert(take_out == "@node(id: 1)\n@node(id: 2)")
+
+  let head_out = match run_query_ext("@servers |> elem(\"node\") |> head() |> attr(\"id\")", doc, true) {
+    Ok(s) => s,
+    _ => ""
+  }
+  assert(head_out == "1")
+}
+
+test "eval text and directive" {
+  let doc = "#namespace k8s: \"https://kubernetes.io\"\n@body \{ Hello world\}"
+  let directive_out = match run_query_ext("#k8s", doc, true) {
+    Ok(s) => s,
+    _ => ""
+  }
+  assert(directive_out == "https://kubernetes.io")
+
+  let text_out = match run_query_ext("@body |> text()", doc, true) {
+    Ok(s) => s,
+    _ => ""
+  }
+  assert(text_out == "Hello world")
+}

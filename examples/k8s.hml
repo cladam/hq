@@ -1,0 +1,85 @@
+apiVersion: "apps/v1"
+kind: "Deployment"
+@metadata {
+    name: "x2hml-api"
+    namespace: "production"
+    @labels {
+        app-name: "x2hml-api"
+        tier: "backend"
+        is-active: true
+    }
+}
+@spec {
+    replicas: 3
+    revision-history-limit: 5
+    @selector {
+        @matchLabels {
+            app-name: "x2hml-api"
+        }
+    }
+    @template {
+        @metadata {
+            @labels {
+                app-name: "x2hml-api"
+            }
+        }
+        @spec {
+            @containers {
+                name: "api-server"
+                image: "ghcr.io/cladam/x2hml-api:v1.0.0"
+                imagePullPolicy: "Always"
+                @ports {
+                    @ports {
+                        containerPort: 8080
+                        name: "http_port"
+                        protocol: "TCP"
+                    }
+                }
+                @env {
+                    @env {
+                        name: "DATABASE_URL"
+                        value: "postgres://user:pass@db:5432/hml_db"
+                    }
+                    @env {
+                        name: "MAX_CONNECTIONS"
+                        value: 50
+                    }
+                    @env {
+                        name: "ENABLE_CACHE"
+                        value: true
+                    }
+                }
+                @resources {
+                    @limits {
+                        cpu: 500m
+                        memory: "512Mi"
+                    }
+                    @requests {
+                        cpu: 100m
+                        memory: "128Mi"
+                    }
+                }
+                @readinessProbe {
+                    @httpGet {
+                        path: "/healthz"
+                        port: 8080
+                    }
+                    initialDelaySeconds: 10
+                    periodSeconds: 5
+                }
+                @volumeMounts {
+                    @volumeMounts {
+                        name: "config-volume"
+                        mountPath: "/etc/config"
+                    }
+                }
+            }
+            @volumes {
+                name: "config-volume"
+                @configMap {
+                    name: "api-config"
+                }
+            }
+        }
+    }
+}

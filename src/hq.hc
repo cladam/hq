@@ -5,7 +5,13 @@ import "std/list"
 pub type QueryOp {
   OpElem(name: string),
   OpProp(name: string),
-  OpAttr(name: string)
+  OpAttr(name: string),
+  OpText,
+  OpDirective(name: string),
+  OpIndex(n: int),
+  OpCount,
+  OpHead,
+  OpTake(n: int)
 }
 
 // -------------------------------------------------------------------
@@ -67,17 +73,75 @@ pub fun filter_props_by_key(nodes: list<HmlNode>, target: string) : list<HmlNode
 pub fun eval_prop(node: HmlNode, target: string) : list<HmlNode> =>
   filter_props_by_key(get_elem_body(node), target)
 
+pub fun filter_texts(nodes: list<HmlNode>) : list<HmlNode> =>
+  match nodes {
+    [] => [],
+    [node, ..rest] => match node {
+      NText(_) => [node] + filter_texts(rest),
+      _ => filter_texts(rest)
+    }
+  }
+
+pub fun eval_text(node: HmlNode) : list<HmlNode> =>
+  match node {
+    NElem(HElement(_, _, body)) => filter_texts(body),
+    NText(_) => [node],
+    _ => []
+  }
+
+pub fun filter_directives(nodes: list<HmlNode>, target: string) : list<HmlNode> =>
+  match nodes {
+    [] => [],
+    [node, ..rest] => match node {
+      NNamespace(pfx, uri) => if pfx == target { [NProp(pfx, HStr(uri))] + filter_directives(rest, target) } else { filter_directives(rest, target) },
+      _ => filter_directives(rest, target)
+    }
+  }
+
 pub fun eval_apply_op(node: HmlNode, op: QueryOp) : list<HmlNode> =>
   match op {
     OpElem(target) => eval_elem(node, target),
     OpAttr(target) => eval_attr(node, target),
-    OpProp(target) => eval_prop(node, target)
+    OpProp(target) => eval_prop(node, target),
+    OpText => eval_text(node),
+    OpDirective(target) => filter_directives(get_elem_body(node), target),
+    _ => []
+  }
+
+pub fun list_get(nodes: list<HmlNode>, n: int) : maybe<HmlNode> =>
+  match nodes {
+    [] => None,
+    [node, ..rest] => if n <= 0 { Some(node) } else { list_get(rest, n - 1) }
+  }
+
+pub fun list_take(nodes: list<HmlNode>, n: int) : list<HmlNode> =>
+  if n <= 0 { [] }
+  else {
+    match nodes {
+      [] => [],
+      [node, ..rest] => [node] + list_take(rest, n - 1)
+    }
   }
 
 pub fun eval_op(nodes: list<HmlNode>, op: QueryOp) : list<HmlNode> =>
+  match op {
+    OpIndex(n) => match list_get(nodes, n) {
+      Some(node) => [node],
+      None => []
+    },
+    OpCount => [NProp("count", HInt(length(nodes)))],
+    OpHead => match nodes {
+      [] => [],
+      [node, ..] => [node]
+    },
+    OpTake(n) => list_take(nodes, n),
+    _ => eval_op_map(nodes, op)
+  }
+
+pub fun eval_op_map(nodes: list<HmlNode>, op: QueryOp) : list<HmlNode> =>
   match nodes {
     [] => [],
-    [node, ..rest] => eval_apply_op(node, op) + eval_op(rest, op)
+    [node, ..rest] => eval_apply_op(node, op) + eval_op_map(rest, op)
   }
 
 pub fun eval_pipeline(doc_nodes: list<HmlNode>, ops: list<QueryOp>) : list<HmlNode> {
@@ -95,11 +159,41 @@ pub fun eval_pipeline_rec(current_nodes: list<HmlNode>, ops: list<QueryOp>, orig
 // Query Expression Parsing
 // -------------------------------------------------------------------
 
+pub fun parse_digits(s: string, pos: int, acc: int) : int {
+  if pos >= str_length(s) { acc }
+  else {
+    let char = s[pos:pos+1]
+    if contains("0123456789", char) {
+      let digit = match char {
+        "1" => 1, "2" => 2, "3" => 3, "4" => 4, "5" => 5,
+        "6" => 6, "7" => 7, "8" => 8, "9" => 9, _ => 0
+      }
+      parse_digits(s, pos + 1, acc * 10 + digit)
+    } else {
+      acc
+    }
+  }
+}
+
+pub fun local_parse_int(s: string) : int =>
+  parse_digits(s, 0, 0)
+
 pub fun parse_step(step: string) : result<QueryOp, string> {
-  if starts_with(step, "@") {
+  if step == "text()" || step == ".text()" {
+    Ok(OpText)
+  } else if step == "count()" {
+    Ok(OpCount)
+  } else if step == "head()" {
+    Ok(OpHead)
+  } else if starts_with(step, "@") {
     Ok(OpElem(step[1:]))
   } else if starts_with(step, ".") {
     Ok(OpProp(step[1:]))
+  } else if starts_with(step, "#") {
+    Ok(OpDirective(step[1:]))
+  } else if starts_with(step, "directive(\"") && ends_with(step, "\")") {
+    let len = str_length(step)
+    Ok(OpDirective(step[11:len - 2]))
   } else if starts_with(step, "attr(\"") && ends_with(step, "\")") {
     let len = str_length(step)
     Ok(OpAttr(step[6:len - 2]))
@@ -109,6 +203,18 @@ pub fun parse_step(step: string) : result<QueryOp, string> {
   } else if starts_with(step, "prop(\"") && ends_with(step, "\")") {
     let len = str_length(step)
     Ok(OpProp(step[6:len - 2]))
+  } else if starts_with(step, "take(") && ends_with(step, ")") {
+    let len = str_length(step)
+    let n = local_parse_int(step[5:len - 1])
+    Ok(OpTake(n))
+  } else if starts_with(step, "index(") && ends_with(step, ")") {
+    let len = str_length(step)
+    let n = local_parse_int(step[6:len - 1])
+    Ok(OpIndex(n))
+  } else if starts_with(step, "[") && ends_with(step, "]") {
+    let len = str_length(step)
+    let n = local_parse_int(step[1:len - 1])
+    Ok(OpIndex(n))
   } else {
     Err("Unknown query step: " + step)
   }
