@@ -1,0 +1,4 @@
+#include "terraform.hml"
+@local_app {
+    port: 80
+}

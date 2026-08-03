@@ -2,6 +2,11 @@
 # Exit on error
 set -e
 
+# Rebuild hq first
+echo "Rebuilding hq..."
+rm -rf .koka
+/Users/claes.adamsson/cladam/code/hica-ecosystem/hica/hica build -o hq
+
 echo ""
 echo "=== hq CLI Examples using examples/tbdflow.hml ==="
 echo ""
@@ -64,4 +69,19 @@ echo ""
 echo "12. Remove matched elements (remove) on scaling-policy in Terraform config:"
 echo "Command: ./hq '@scaling-policy |> remove()' examples/terraform.hml"
 ./hq '@scaling-policy |> remove()' examples/terraform.hml
+echo ""
+
+echo "13. Slurp multiple files together (--slurp / -s) and count combined top-level elements:"
+echo "Command: ./hq -s 'count()' examples/terraform.hml examples/k8s.hml"
+./hq -s 'count()' examples/terraform.hml examples/k8s.hml
+echo ""
+
+echo "14. Query with include resolution (default behavior):"
+echo "Command: ./hq '.region' examples/composite.hml"
+./hq '.region' examples/composite.hml
+echo ""
+
+echo "15. Query bypassing include resolution (--no-include):"
+echo "Command: ./hq '.region' --no-include examples/composite.hml"
+./hq '.region' --no-include examples/composite.hml
 echo ""

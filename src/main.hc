@@ -19,7 +19,7 @@ fun process_file(f: string, expr: string, is_raw: bool, in_place: bool, use_colo
   match read_file(f) {
     Ok(content) => {
       let processed = if no_include { replace(content, "#include", "// #include") } else { content }
-      match run_query_ext_color(expr, processed, is_raw, use_color) {
+      match run_query_ext_color(expr, processed, f, is_raw, use_color) {
         Ok(result) => {
           if in_place {
             match write_file(f, result) {

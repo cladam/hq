@@ -183,10 +183,10 @@ pub fun eval_pipeline_rec(current_nodes: list<HmlNode>, ops: list<QueryOp>) : li
   }
 
 pub fun run_query(expr: string, hml_content: string) : result<string, string> =>
-  run_query_ext_color(expr, hml_content, false, false)
+  run_query_ext_color(expr, hml_content, "input.hml", false, false)
 
 pub fun run_query_ext(expr: string, hml_content: string, hq_raw: bool) : result<string, string> =>
-  run_query_ext_color(expr, hml_content, hq_raw, false)
+  run_query_ext_color(expr, hml_content, "input.hml", hq_raw, false)
 
 pub fun run_query_nodes_color(expr: string, nodes: list<HmlNode>, hq_raw: bool, use_color: bool) : result<string, string> {
   match parse_query(expr) {
@@ -199,8 +199,8 @@ pub fun run_query_nodes_color(expr: string, nodes: list<HmlNode>, hq_raw: bool, 
   }
 }
 
-pub fun run_query_ext_color(expr: string, hml_content: string, hq_raw: bool, use_color: bool) : result<string, string> {
-  match hml_parse_file_content(hml_content, "input.hml") {
+pub fun run_query_ext_color(expr: string, hml_content: string, path: string, hq_raw: bool, use_color: bool) : result<string, string> {
+  match hml_parse_file_content(hml_content, path) {
     Ok(nodes) => run_query_nodes_color(expr, nodes, hq_raw, use_color),
     Err(e) => Err("Parse error: " + e)
   }
