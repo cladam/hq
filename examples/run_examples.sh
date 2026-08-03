@@ -2,11 +2,6 @@
 # Exit on error
 set -e
 
-# Rebuild hq first
-echo "Rebuilding hq..."
-rm -rf .koka
-hica build -o hq
-
 echo ""
 echo "=== hq CLI Examples using examples/tbdflow.hml ==="
 echo ""
@@ -54,4 +49,19 @@ echo ""
 echo "9. Extract containerPort from K8s Deployment spec:"
 echo "Command: ./hq '@spec |> elem(\"template\") |> elem(\"spec\") |> elem(\"containers\") |> elem(\"ports\") |> elem(\"ports\") |> prop(\"containerPort\")' examples/k8s.hml"
 ./hq '@spec |> elem("template") |> elem("spec") |> elem("containers") |> elem("ports") |> elem("ports") |> prop("containerPort")' examples/k8s.hml
+echo ""
+
+echo "10. Mutate a property value (set_prop) on scaling-policy in Terraform config:"
+echo "Command: ./hq '@scaling-policy |> set_prop(\"min-capacity\", 5)' examples/terraform.hml"
+./hq '@scaling-policy |> set_prop("min-capacity", 5)' examples/terraform.hml
+echo ""
+
+echo "11. Mutate an attribute value (set_attr) adding cooldown to scaling-policy in Terraform config:"
+echo "Command: ./hq '@scaling-policy |> set_attr(\"cooldown\", 300)' examples/terraform.hml"
+./hq '@scaling-policy |> set_attr("cooldown", 300)' examples/terraform.hml
+echo ""
+
+echo "12. Remove matched elements (remove) on scaling-policy in Terraform config:"
+echo "Command: ./hq '@scaling-policy |> remove()' examples/terraform.hml"
+./hq '@scaling-policy |> remove()' examples/terraform.hml
 echo ""
