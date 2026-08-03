@@ -78,3 +78,39 @@ test "eval text and directive" {
   }
   assert(text_out == "Hello world")
 }
+
+test "mutation set_attr" {
+  let doc = "@server(port: 8080) \{ log_file: \"app.log\" \}"
+  let out = match run_query("@server |> set_attr(\"port\", 9090)", doc) {
+    Ok(s) => s,
+    _ => ""
+  }
+  assert(out == "@server(port: 9090) \{\n    log_file: \"app.log\"\n\}")
+}
+
+test "mutation set_attr add new" {
+  let doc = "@server \{ port: 8080 \}"
+  let out = match run_query("@server |> set_attr(\"ssl\", true)", doc) {
+    Ok(s) => s,
+    _ => ""
+  }
+  assert(out == "@server(ssl) \{\n    port: 8080\n\}")
+}
+
+test "mutation set_prop" {
+  let doc = "@server(port: 8080) \{ log_file: \"app.log\" \}"
+  let out = match run_query("@server |> set_prop(\"log_file\", \"new.log\")", doc) {
+    Ok(s) => s,
+    _ => ""
+  }
+  assert(out == "@server(port: 8080) \{\n    log_file: \"new.log\"\n\}")
+}
+
+test "mutation remove" {
+  let doc = "@servers \{ @node(id: 1) @node(id: 2) \}"
+  let out = match run_query("@servers |> elem(\"node\") |> remove()", doc) {
+    Ok(s) => s,
+    _ => ""
+  }
+  assert(out == "")
+}
