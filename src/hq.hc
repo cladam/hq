@@ -60,9 +60,114 @@ pub fun eval_op_map(nodes: list<HmlNode>, op: QueryOp) : list<HmlNode> =>
     [node, ..rest] => eval_apply_op(node, op) + eval_op_map(rest, op)
   }
 
+pub fun is_mutation_op(op: QueryOp) : bool =>
+  match op {
+    OpSetAttr(_, _) => true,
+    OpSetProp(_, _) => true,
+    OpRemove => true,
+    _ => false
+  }
+
+pub fun has_mutation(ops: list<QueryOp>) : bool =>
+  match ops {
+    [] => false,
+    [op, ..rest] => if is_mutation_op(op) { true } else { has_mutation(rest) }
+  }
+
+pub fun list_get_op(ops: list<QueryOp>, n: int) : maybe<QueryOp> =>
+  match ops {
+    [] => None,
+    [op, ..rest] => if n <= 0 { Some(op) } else { list_get_op(rest, n - 1) }
+  }
+
+pub fun list_take_op(ops: list<QueryOp>, n: int) : list<QueryOp> =>
+  if n <= 0 { [] }
+  else {
+    match ops {
+      [] => [],
+      [op, ..rest] => [op] + list_take_op(rest, n - 1)
+    }
+  }
+
+pub fun split_mutation(ops: list<QueryOp>) : (list<QueryOp>, QueryOp) {
+  let len = length(ops)
+  let path = list_take_op(ops, len - 1)
+  let last_op = match list_get_op(ops, len - 1) {
+    Some(op) => op,
+    None => OpRemove
+  }
+  (path, last_op)
+}
+
+pub fun apply_mutation(node: HmlNode, mutate_op: QueryOp) : list<HmlNode> =>
+  match mutate_op {
+    OpSetAttr(key, vs) => eval_set_attr(node, key, parse_hml_val(vs)),
+    OpSetProp(key, vs) => eval_set_prop(node, key, parse_hml_val(vs)),
+    OpRemove => [],
+    _ => [node]
+  }
+
+pub fun is_node_match(node: HmlNode, op: QueryOp) : bool =>
+  match op {
+    OpElem(target) => hq_is_elem_named(node, target),
+    OpProp(target) => match node {
+      NProp(k, _) => k == target,
+      _ => false
+    },
+    _ => false
+  }
+
+pub fun mutate_nodes(nodes: list<HmlNode>, path_ops: list<QueryOp>, mutate_op: QueryOp) : list<HmlNode> =>
+  match path_ops {
+    [] => {
+      // If path is empty, we apply the mutation directly to all nodes in this list
+      match nodes {
+        [] => [],
+        [node, ..rest] => apply_mutation(node, mutate_op) + mutate_nodes(rest, path_ops, mutate_op)
+      }
+    },
+    [op] => {
+      // If path has exactly one step, we are at the level where target nodes reside
+      match nodes {
+        [] => [],
+        [node, ..rest] => {
+          if is_node_match(node, op) {
+            apply_mutation(node, mutate_op) + mutate_nodes(rest, path_ops, mutate_op)
+          } else {
+            [node] + mutate_nodes(rest, path_ops, mutate_op)
+          }
+        }
+      }
+    },
+    [op, ..rest_ops] => {
+      // Deeper path: we traverse down if the current node matches the current path step
+      match nodes {
+        [] => [],
+        [node, ..rest] => {
+          if is_node_match(node, op) {
+            match node {
+              NElem(HElement(name, attrs, body)) => {
+                let mutated_body = mutate_nodes(body, rest_ops, mutate_op)
+                [NElem(HElement(name, attrs, mutated_body))] + mutate_nodes(rest, path_ops, mutate_op)
+              },
+              _ => [node] + mutate_nodes(rest, path_ops, mutate_op)
+            }
+          } else {
+            [node] + mutate_nodes(rest, path_ops, mutate_op)
+          }
+        }
+      }
+    }
+  }
+
 pub fun eval_pipeline(doc_nodes: list<HmlNode>, ops: list<QueryOp>) : list<HmlNode> {
-  let root = NElem(HElement("", [], doc_nodes))
-  eval_pipeline_rec([root], ops)
+  if has_mutation(ops) {
+    let (path_ops, mutate_op) = split_mutation(ops)
+    mutate_nodes(doc_nodes, path_ops, mutate_op)
+  } else {
+    let root = NElem(HElement("", [], doc_nodes))
+    eval_pipeline_rec([root], ops)
+  }
 }
 
 pub fun eval_pipeline_rec(current_nodes: list<HmlNode>, ops: list<QueryOp>) : list<HmlNode> =>

@@ -112,5 +112,5 @@ test "mutation remove" {
     Ok(s) => s,
     _ => ""
   }
-  assert(out == "")
+  assert(out == "@servers")
 }
