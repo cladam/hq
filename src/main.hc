@@ -14,9 +14,9 @@ fun make_spec() =>
     |> arg("expression", "The query expression to evaluate", true)
     |> arg("files", "Input files (or STDIN if missing)", false)
 
-fun process_file(f: string, expr: string, is_raw: bool, in_place: bool) {
+fun process_file(f: string, expr: string, is_raw: bool, in_place: bool, use_color: bool) {
   match read_file(f) {
-    Ok(content) => match run_query_ext(expr, content, is_raw) {
+    Ok(content) => match run_query_ext_color(expr, content, is_raw, use_color) {
       Ok(result) => {
         if in_place {
           match write_file(f, result) {
@@ -42,10 +42,11 @@ fun main() {
     Parsed(r)     => {
       let raw_output = has_flag(r, "raw-output")
       let in_place   = has_flag(r, "in-place")
+      let use_color  = has_flag(r, "color")
       let pos = get_positionals(r)
       match pos {
         [] => eprintln("error: Missing expression argument"),
-        [expr, ..files] => foreach(files, (f) => process_file(f, expr, raw_output, in_place))
+        [expr, ..files] => foreach(files, (f) => process_file(f, expr, raw_output, in_place, use_color))
       }
     }
   }

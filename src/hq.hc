@@ -177,14 +177,17 @@ pub fun eval_pipeline_rec(current_nodes: list<HmlNode>, ops: list<QueryOp>) : li
   }
 
 pub fun run_query(expr: string, hml_content: string) : result<string, string> =>
-  run_query_ext(expr, hml_content, false)
+  run_query_ext_color(expr, hml_content, false, false)
 
-pub fun run_query_ext(expr: string, hml_content: string, hq_raw: bool) : result<string, string> {
+pub fun run_query_ext(expr: string, hml_content: string, hq_raw: bool) : result<string, string> =>
+  run_query_ext_color(expr, hml_content, hq_raw, false)
+
+pub fun run_query_ext_color(expr: string, hml_content: string, hq_raw: bool, use_color: bool) : result<string, string> {
   match parse_query(expr) {
     Ok(ops) => match hml_parse_file_content(hml_content, "input.hml") {
       Ok(nodes) => {
         let filtered = eval_pipeline(nodes, ops)
-        let output = if hq_raw { raw_pretty_nodes(filtered) } else { local_pretty_nodes(filtered, 0) }
+        let output = if hq_raw { raw_pretty_nodes(filtered) } else { local_pretty_nodes_ext(filtered, 0, use_color) }
         Ok(output)
       },
       Err(e) => Err("Parse error: " + e)

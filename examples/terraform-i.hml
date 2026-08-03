@@ -1,0 +1,41 @@
+cluster-name: "production_aws_cluster"
+region: "us-east-1"
+environment: "prod"
+availability-zones: ["us-east-1a", "us-east-1b", "us-east-1c"]
+vpc-cidr: "10.0.0.0/16"
+@ingress-rules {
+    port: 80
+    protocol: "TCP"
+    cidr: "0.0.0.0/0"
+    description: "HTTP traffic"
+}
+@ingress-rules {
+    port: 443
+    protocol: "TCP"
+    cidr: "0.0.0.0/0"
+    description: "HTTPS traffic"
+}
+@ingress-rules {
+    port: 22
+    protocol: "TCP"
+    cidr: "10.0.0.0/8"
+    description: "Internal SSH access"
+}
+@database-config {
+    db-name: "main_db"
+    allocated-storage-gb: 100
+    multi-az: true
+    auto-minor-version-upgrade: true
+    backup-retention-days: 14
+    deletion-protection: false
+    maintenance-window: null
+}
+user-data-script: """
+#!/bin/bash
+set -euo pipefail
+echo "Initializing node for x2hml cluster..."
+systemctl start docker
+echo "Done!"
+
+
+"""
