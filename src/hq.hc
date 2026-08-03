@@ -39,18 +39,24 @@ pub fun list_take(nodes: list<HmlNode>, n: int) : list<HmlNode> =>
     }
   }
 
+pub fun unwrap_anonymous_root(nodes: list<HmlNode>) : list<HmlNode> =>
+  match nodes {
+    [NElem(HElement("", _, body))] => body,
+    _ => nodes
+  }
+
 pub fun eval_op(nodes: list<HmlNode>, op: QueryOp) : list<HmlNode> =>
   match op {
-    OpIndex(n) => match list_get(nodes, n) {
+    OpIndex(n) => match list_get(unwrap_anonymous_root(nodes), n) {
       Some(node) => [node],
       None => []
     },
-    OpCount => [NProp("count", HInt(length(nodes)))],
-    OpHead => match nodes {
+    OpCount => [NProp("count", HInt(length(unwrap_anonymous_root(nodes))))],
+    OpHead => match unwrap_anonymous_root(nodes) {
       [] => [],
       [node, ..] => [node]
     },
-    OpTake(n) => list_take(nodes, n),
+    OpTake(n) => list_take(unwrap_anonymous_root(nodes), n),
     _ => eval_op_map(nodes, op)
   }
 
@@ -182,16 +188,20 @@ pub fun run_query(expr: string, hml_content: string) : result<string, string> =>
 pub fun run_query_ext(expr: string, hml_content: string, hq_raw: bool) : result<string, string> =>
   run_query_ext_color(expr, hml_content, hq_raw, false)
 
-pub fun run_query_ext_color(expr: string, hml_content: string, hq_raw: bool, use_color: bool) : result<string, string> {
+pub fun run_query_nodes_color(expr: string, nodes: list<HmlNode>, hq_raw: bool, use_color: bool) : result<string, string> {
   match parse_query(expr) {
-    Ok(ops) => match hml_parse_file_content(hml_content, "input.hml") {
-      Ok(nodes) => {
-        let filtered = eval_pipeline(nodes, ops)
-        let output = if hq_raw { raw_pretty_nodes(filtered) } else { local_pretty_nodes_ext(filtered, 0, use_color) }
-        Ok(output)
-      },
-      Err(e) => Err("Parse error: " + e)
+    Ok(ops) => {
+      let filtered = eval_pipeline(nodes, ops)
+      let output = if hq_raw { raw_pretty_nodes(filtered) } else { local_pretty_nodes_ext(filtered, 0, use_color) }
+      Ok(output)
     },
     Err(e) => Err("Query error: " + e)
+  }
+}
+
+pub fun run_query_ext_color(expr: string, hml_content: string, hq_raw: bool, use_color: bool) : result<string, string> {
+  match hml_parse_file_content(hml_content, "input.hml") {
+    Ok(nodes) => run_query_nodes_color(expr, nodes, hq_raw, use_color),
+    Err(e) => Err("Parse error: " + e)
   }
 }
